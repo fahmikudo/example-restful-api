@@ -9,14 +9,20 @@ import (
 )
 
 type CategoryRepositoryImpl struct {
+	DB *sql.DB
 }
 
-func NewCategoryRepositoryImpl() CategoryRepository {
-	return &CategoryRepositoryImpl{}
+func NewCategoryRepositoryImpl(DB *sql.DB) CategoryRepository {
+	return &CategoryRepositoryImpl{DB: DB}
 }
 
-func (c *CategoryRepositoryImpl) Save(ctx context.Context, tx *sql.Tx, category domain.Category) domain.Category {
+func (c *CategoryRepositoryImpl) Save(ctx context.Context, category domain.Category) domain.Category {
 	SQL := "INSERT INTO category (name) VALUES (?)"
+
+	tx, err := c.DB.Begin()
+	helper.PanicIfErr(err)
+	defer helper.CommitOrRollback(tx)
+
 	result, err := tx.ExecContext(ctx, SQL, category.Name)
 	helper.PanicIfErr(err)
 
@@ -27,21 +33,37 @@ func (c *CategoryRepositoryImpl) Save(ctx context.Context, tx *sql.Tx, category 
 	return category
 }
 
-func (c *CategoryRepositoryImpl) Update(ctx context.Context, tx *sql.Tx, category domain.Category) domain.Category {
+func (c *CategoryRepositoryImpl) Update(ctx context.Context, category domain.Category) domain.Category {
 	SQL := "UPDATE category SET name = ? WHERE id = ?"
-	_, err := tx.ExecContext(ctx, SQL, category.Name, category.Id)
+
+	tx, err := c.DB.Begin()
 	helper.PanicIfErr(err)
+	defer helper.CommitOrRollback(tx)
+
+	_, err = tx.ExecContext(ctx, SQL, category.Name, category.Id)
+	helper.PanicIfErr(err)
+
 	return category
 }
 
-func (c *CategoryRepositoryImpl) Delete(ctx context.Context, tx *sql.Tx, category domain.Category) {
+func (c *CategoryRepositoryImpl) Delete(ctx context.Context, category domain.Category) {
 	SQL := "DELETE FROM category WHERE id = ?"
-	_, err := tx.ExecContext(ctx, SQL, category.Id)
+
+	tx, err := c.DB.Begin()
+	helper.PanicIfErr(err)
+	defer helper.CommitOrRollback(tx)
+
+	_, err = tx.ExecContext(ctx, SQL, category.Id)
 	helper.PanicIfErr(err)
 }
 
-func (c *CategoryRepositoryImpl) FindById(ctx context.Context, tx *sql.Tx, categoryId int) (domain.Category, error) {
+func (c *CategoryRepositoryImpl) FindById(ctx context.Context, categoryId int) (domain.Category, error) {
 	SQL := "SELECT id, name FROM category WHERE id = ?"
+
+	tx, err := c.DB.Begin()
+	helper.PanicIfErr(err)
+	defer helper.CommitOrRollback(tx)
+
 	rows, err := tx.QueryContext(ctx, SQL, categoryId)
 	helper.PanicIfErr(err)
 	defer func(rows *sql.Rows) {
@@ -60,8 +82,13 @@ func (c *CategoryRepositoryImpl) FindById(ctx context.Context, tx *sql.Tx, categ
 	}
 }
 
-func (c *CategoryRepositoryImpl) FindAll(ctx context.Context, tx *sql.Tx) []domain.Category {
+func (c *CategoryRepositoryImpl) FindAll(ctx context.Context) []domain.Category {
 	SQL := "SELECT id, name FROM category"
+
+	tx, err := c.DB.Begin()
+	helper.PanicIfErr(err)
+	defer helper.CommitOrRollback(tx)
+
 	rows, err := tx.QueryContext(ctx, SQL)
 	helper.PanicIfErr(err)
 	defer func(rows *sql.Rows) {
